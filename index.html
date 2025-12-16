@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0, minimum-scale=1.0">
+    <title>冰雪圣诞梦境 - 逆流星河版</title>
+    <style>
+        /* --- 样式完全保持不变 --- */
+        body { 
+            margin: 0; overflow: hidden; 
+            background: radial-gradient(circle at center, #0b1a2a 0%, #00020a 70%);
+            touch-action: none; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; 
+        }
+        canvas { display: block; }
+        
+        #ui-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column;
+            justify-content: space-between; padding: 30px; box-sizing: border-box; z-index: 10;
+        }
+        
+        .title {
+            text-align: center; color: #fff; font-family: 'Times New Roman', serif; 
+            font-weight: 100; font-size: 28px; letter-spacing: 4px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(135, 206, 250, 0.8), 0 0 20px rgba(0, 100, 255, 0.4); 
+            margin-top: 40px; opacity: 0; animation: fadeIn 3s ease-in 1s forwards, titleBreathe 5s infinite ease-in-out;
+        }
+        
+        .footer {
+            text-align: center; color: rgba(200, 230, 255, 0.6);
+            font-size: 10px; letter-spacing: 1px; font-family: sans-serif; 
+            margin-bottom: 20px; opacity: 0; animation: fadeIn 3s ease-in 2s forwards;
+        }
+
+        #music-btn {
+            position: absolute; top: 30px; right: 20px;
+            color: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(135, 206, 250, 0.4);
+            border-radius: 15px; padding: 6px 12px;
+            font-family: sans-serif; font-size: 11px; letter-spacing: 1px;
+            cursor: pointer; pointer-events: auto;
+            backdrop-filter: blur(4px); z-index: 100;
+            display: none; 
+            transition: all 0.3s;
+        }
+        #music-btn:hover { background: rgba(135, 206, 250, 0.2); }
+
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 2, 10, 0.98); z-index: 999;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.8s;
+        }
+        
+        #start-btn {
+            color: #888; font-family: sans-serif; font-size: 18px;
+            border: 1px solid rgba(255,255,255,0.2); padding: 12px 30px; letter-spacing: 3px;
+            background: rgba(255,255,255,0.02); border-radius: 30px;
+            pointer-events: none; 
+            transition: all 0.3s;
+        }
+        
+        #start-btn.ready {
+            color: #fff; border-color: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.1);
+            pointer-events: auto; cursor: pointer;
+            box-shadow: 0 0 15px rgba(135, 206, 235, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        .hint {
+            margin-top: 15px; color: rgba(255,255,255,0.5); font-size: 12px; letter-spacing: 1px;
+        }
+        
+        #loading-text {
+            color: #00bfff; font-size: 12px; margin-top: 10px; font-family: monospace;
+        }
+
+        @keyframes fadeIn { to { opacity: 1; } }
+        @keyframes pulse { 0% { box-shadow: 0 0 15px rgba(135, 206, 235, 0.3); } 50% { box-shadow: 0 0 25px rgba(135, 206, 235, 0.6); } 100% { box-shadow: 0 0 15px rgba(135, 206, 235, 0.3); } }
+        @keyframes titleBreathe { 0%, 100% { text-shadow: 0 0 10px rgba(135, 206, 250, 0.8); } 50% { text-shadow: 0 0 25px rgba(135, 206, 250, 1.0), 0 0 10px rgba(255,255,255,0.5); } }
+    </style>
+</head>
+<body>
+
+    <div id="start-screen">
+        <div id="start-btn">等待音乐加载...</div>
+        <div id="loading-text">0%</div>
+        <div class="hint">为了保证流畅，请稍等片刻 ❄️</div>
+    </div>
+
+    <div id="ui-container">
+        <div class="title">Merry Christmas</div>
+        <div id="music-btn">♫ 音乐: 开</div>
+        <div class="footer">Winter Dream | 冰雪奇缘</div>
+    </div>
+
+    <audio id="bgm" loop preload="auto" playsinline webkit-playsinline>
+        <source src="https://music.163.com/song/media/outer/url?id=480353.mp3" type="audio/mpeg">
+    </audio>
+
+    <script type="x-shader/x-vertex" id="treeVertex">
+        attribute float size; attribute float pIndex; attribute vec3 customColor;
+        uniform float time; uniform float uHeight;
+        varying vec3 vColor; varying float vAlpha;
+        void main() {
+            vec3 pos = position;
+            float angle = time * 0.1 + pos.y * 0.05;
+            float c = cos(angle); float s = sin(angle);
+            float nx = pos.x * c - pos.z * s; float nz = pos.x * s + pos.z * c;
+            pos.x = nx; pos.z = nz;
+            float beat = sin(time * 2.0 - pos.y * 0.05);
+            float currentSize = size * (0.8 + beat * 0.2); 
+            float hNorm = (pos.y + uHeight / 2.0) / uHeight;
+            float intro = smoothstep(0.0, 1.0, (time * 0.5 - hNorm * 0.8)); 
+            currentSize *= intro; 
+            float twinkle = sin(time * 5.0 + pIndex * 20.0);
+            float sparkle = smoothstep(0.5, 1.0, twinkle); 
+            vColor = customColor; vColor += vec3(0.6, 0.9, 1.0) * sparkle * 0.6; 
+            vAlpha = (0.5 + sparkle * 0.5) * intro; 
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            gl_PointSize = currentSize * (200.0 / -mvPosition.z); 
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="treeFragment">
+        uniform sampler2D pointTexture; varying vec3 vColor; varying float vAlpha;
+        void main() {
+            vec4 texColor = texture2D(pointTexture, gl_PointCoord);
+            if (texColor.a < 0.1) discard;
+            gl_FragColor = vec4(vColor * 1.8, vAlpha * texColor.a);
+        }
+    </script>
+
+    <script type="x-shader/x-vertex" id="ornamentVertex">
+        attribute float size; attribute vec3 customColor; uniform float time;
+        varying vec3 vColor; varying float vAlpha;
+        void main() {
+            vec3 pos = position;
+            float angle = time * 0.1; float c = cos(angle); float s = sin(angle);
+            float nx = pos.x * c - pos.z * s; float nz = pos.x * s + pos.z * c;
+            pos.x = nx; pos.z = nz;
+            vColor = customColor;
+            float pulse = sin(time * 2.0 + pos.y) * 0.5 + 0.5;
+            vAlpha = 0.8 + pulse * 0.2;
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            gl_PointSize = size * (300.0 / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="ornamentFragment">
+        uniform sampler2D pointTexture; varying vec3 vColor; varying float vAlpha;
+        void main() {
+            vec4 tex = texture2D(pointTexture, gl_PointCoord);
+            if(tex.a < 0.05) discard;
+            gl_FragColor = vec4(vColor * 2.5, vAlpha * tex.a);
+        }
+    </script>
+
+    <script type="x-shader/x-vertex" id="snowVertex">
+        attribute float size; 
+        attribute float velocity; 
+        attribute float phase;
+        uniform float time; 
+        uniform float uHeight; 
+        varying float vOpacity;
+        varying float vSparkle;
+
+        void main() {
+            vec3 pos = position;
+            
+            // 1. 下落速度减半
+            float fallSpeed = velocity * (4.0 + sin(time * 0.2) * 1.0); 
+            float yOffset = mod(pos.y - time * fallSpeed, uHeight);
+            pos.y = yOffset - uHeight / 2.0;
+
+            // 2. 气流场 (微风模式)
+            float noiseFreq = 0.001; 
+            float turbulence = sin(time * 0.2 + pos.y * noiseFreq) * cos(time * 0.15 + pos.z * noiseFreq);
+            
+            // 3. 旋转力场 (极慢速)
+            float spiralAngle = time * 0.05 * velocity + turbulence * 0.5;
+            float c = cos(spiralAngle);
+            float s = sin(spiralAngle);
+            
+            float rx = pos.x * c - pos.z * s;
+            float rz = pos.x * s + pos.z * c;
+            
+            pos.x = rx + sin(time * 0.2 + pos.y * 0.005) * 10.0;
+            pos.z = rz + cos(time * 0.2 + pos.x * 0.005) * 10.0;
+
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            
+            float depthScale = 400.0 / -mvPosition.z;
+            gl_PointSize = size * depthScale;
+            
+            float borderY = smoothstep(uHeight/2.0 - 150.0, uHeight/2.0, abs(pos.y));
+            
+            // 闪烁柔化
+            float blinkSpeed = 1.0 + velocity * 1.5;
+            float sparkleCycle = sin(time * blinkSpeed + phase);
+            vSparkle = pow(max(0.0, sparkleCycle), 6.0); 
+
+            float intro = smoothstep(0.0, 3.0, time); 
+            float distAlpha = 1.0 - smoothstep(500.0, 1500.0, -mvPosition.z);
+            
+            vOpacity = (1.0 - borderY) * intro * distAlpha;
+            
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+    
+    <script type="x-shader/x-fragment" id="snowFragment">
+        uniform sampler2D pointTexture; 
+        varying float vOpacity;
+        varying float vSparkle;
+
+        void main() {
+            vec4 tex = texture2D(pointTexture, gl_PointCoord);
+            if(tex.a < 0.1) discard;
+            
+            vec3 baseColor = vec3(0.4, 0.7, 1.0); 
+            vec3 shineColor = vec3(1.8, 2.0, 2.5); // 柔和的高光
+            
+            vec3 finalColor = mix(baseColor, shineColor, vSparkle);
+            float alpha = vOpacity * tex.a * (0.3 + vSparkle * 0.7);
+
+            gl_FragColor = vec4(finalColor, alpha);
+        }
+    </script>
+
+    <script type="x-shader/x-vertex" id="lanternVertex">
+        attribute float size; attribute float riseSpeed; attribute float offset; uniform float time; varying float vAlpha;
+        void main() {
+            vec3 pos = position;
+            float yPos = mod(time * riseSpeed + offset, 40.0); 
+            pos.y += yPos;
+            float sway = sin(time * 0.5 + offset) * 3.0;
+            pos.x += sway; pos.z += cos(time * 0.3 + offset) * 3.0;
+            float alpha = smoothstep(0.0, 5.0, yPos) * (1.0 - smoothstep(30.0, 40.0, yPos));
+            vAlpha = alpha * 0.8;
+            vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+            gl_PointSize = size * (300.0 / -mvPosition.z);
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="lanternFragment">
+        uniform sampler2D pointTexture; varying float vAlpha;
+        void main() {
+            vec4 tex = texture2D(pointTexture, gl_PointCoord);
+            if(tex.a < 0.1) discard;
+            gl_FragColor = vec4(0.7, 0.9, 1.0, vAlpha * tex.a);
+        }
+    </script>
+
+    <script type="x-shader/x-vertex" id="streamVertex">
+        varying vec2 vUv;
+        varying vec3 vViewPosition;
+        varying vec3 vNormal;
+        void main() { 
+            vUv = uv; 
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            vViewPosition = -mvPosition.xyz;
+            vNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * mvPosition; 
+        }
+    </script>
+    <script type="x-shader/x-fragment" id="streamFragment">
+        varying vec2 vUv; varying vec3 vNormal; varying vec3 vViewPosition;
+        uniform float time; uniform vec3 color;
+        void main() {
+            float flow = sin(vUv.x * 8.0 - time * 3.0) * 0.5 + 0.5;
+            float flow2 = sin(vUv.x * 15.0 - time * 5.0) * 0.3;
+            float edge = smoothstep(0.0, 0.4, vUv.y) * smoothstep(1.0, 0.6, vUv.y);
+            vec3 viewDir = normalize(vViewPosition);
+            float fresnel = pow(1.0 - abs(dot(vNormal, viewDir)), 2.0);
+            float alpha = (flow + flow2 + fresnel) * edge * 0.6;
+            vec3 finalColor = mix(color, vec3(1.0), flow * 0.8 * fresnel);
+            gl_FragColor = vec4(finalColor, alpha);
+        }
+    </script>
+
+    <script type="x-shader/x-vertex" id="groundVertex">
+        varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+    </script>
+    <script type="x-shader/x-fragment" id="groundFragment">
+        varying vec2 vUv; uniform float time;
+        void main() {
+            float dist = distance(vUv, vec2(0.5));
+            float ring = 1.0 - smoothstep(0.48, 0.5, dist);
+            float innerFade = smoothstep(0.2, 0.5, dist);
+            float wave = sin(dist * 20.0 - time * 2.0) * 0.1 + 0.9;
+            float alpha = ring * innerFade * 0.3 * wave;
+            vec3 col = vec3(0.4, 0.8, 1.0); 
+            gl_FragColor = vec4(col, alpha);
+        }
+    </script>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- 音乐控制 (保持不变) ---
+        const bgm = document.getElementById('bgm');
+        const startScreen = document.getElementById('start-screen');
+        const startBtn = document.getElementById('start-btn');
+        const loadingText = document.getElementById('loading-text');
+        const musicBtn = document.getElementById('music-btn');
+        let musicReady = false;
+        let musicPlaying = false;
+
+        bgm.addEventListener('canplaythrough', () => {
+            if(!musicReady) {
+                musicReady = true;
+                startBtn.textContent = "点击开启 ❄️";
+                startBtn.classList.add('ready');
+                loadingText.style.display = 'none';
+            }
+        });
+
+        bgm.addEventListener('waiting', () => { if(musicPlaying) musicBtn.textContent = '♫ 缓冲中...'; });
+        bgm.addEventListener('playing', () => { musicBtn.textContent = '♫ 音乐: 开'; });
+
+        setTimeout(() => {
+            if(!musicReady) {
+                musicReady = true;
+                startBtn.textContent = "点击开启 (音乐可能未就绪)";
+                startBtn.classList.add('ready');
+                loadingText.style.display = 'none';
+            }
+        }, 5000);
+
+        document.addEventListener('WeixinJSBridgeReady', function() { bgm.load(); }, false);
+
+        startBtn.addEventListener('click', () => {
+            if(!musicReady) return;
+            startScreen.style.opacity = '0';
+            setTimeout(() => { startScreen.style.display = 'none'; }, 800);
+            musicBtn.style.display = 'block';
+            bgm.play().then(() => {
+                musicPlaying = true;
+                musicBtn.textContent = '♫ 音乐: 开';
+            }).catch(e => {
+                console.log("Autoplay blocked", e);
+                musicBtn.textContent = '🔇 点击播放';
+                musicPlaying = false;
+            });
+        });
+
+        musicBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if(musicPlaying) { bgm.pause(); musicBtn.textContent = '♫ 音乐: 关'; musicPlaying = false; } 
+            else { bgm.play(); musicBtn.textContent = '♫ 音乐: 开'; musicPlaying = true; }
+        });
+
+        // --- 3D 场景初始化 ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x051020, 0.0025); 
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 3000);
+        
+        // 【运镜配置】(保持不变)
+        const isMobile = window.innerWidth < 768;
+        const targetPos = new THREE.Vector3(0, isMobile ? 30 : 20, isMobile ? 260 : 220);
+        const startPos = new THREE.Vector3(0, 30, 1200); 
+        
+        camera.position.copy(startPos);
+        camera.lookAt(0, 20, 0); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true }); 
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.toneMapping = THREE.ACESFilmicToneMapping; 
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        const renderScene = new RenderPass(scene, camera);
+        const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+        bloomPass.threshold = 0.2; bloomPass.strength = 1.5; bloomPass.radius = 0.5;   
+        const composer = new EffectComposer(renderer);
+        composer.addPass(renderScene); composer.addPass(bloomPass);
+
+        function createSoftTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64; canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            const g = ctx.createRadialGradient(32,32,0, 32,32,32);
+            g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.5, 'rgba(255,255,255,0.2)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = g; ctx.fillRect(0,0,64,64);
+            return new THREE.CanvasTexture(canvas);
+        }
+        const particleTex = createSoftTexture();
+
+        // --- 树体粒子组 (保持不变) ---
+        const treeGroup = new THREE.Group(); scene.add(treeGroup);
+        const treeHeight = 160; const treeWidth = 60; const particleCount = isMobile ? 30000 : 45000; 
+        const treeGeo = new THREE.BufferGeometry();
+        const posArr = [], sizeArr = [], colorArr = [], idxArr = [];
+        const palette = [new THREE.Color('#E0FFFF'), new THREE.Color('#87CEFA'), new THREE.Color('#00BFFF'), new THREE.Color('#1E90FF'), new THREE.Color('#B0E0E6'), new THREE.Color('#FFFFFF')];
+
+        for(let i=0; i<particleCount; i++) {
+            const t = i / particleCount; const angle = t * Math.PI * 100; 
+            const yNorm = (1 - t); const y = yNorm * treeHeight - treeHeight/2;
+            const rBase = t * treeWidth; const rNoise = Math.cos(angle * 8) * 2.5; const radius = rBase + rNoise;
+            const x = Math.cos(angle) * radius; const z = Math.sin(angle) * radius;
+            const spread = t * 8.0; 
+            posArr.push(x + (Math.random()-0.5)*spread, y + (Math.random()-0.5)*2, z + (Math.random()-0.5)*spread);
+            sizeArr.push(Math.random() * 1.5 + 0.2); idxArr.push(i);
+            const baseColor = palette[Math.floor(Math.random() * palette.length)];
+            if(Math.random() > 0.98) { colorArr.push(0.8, 1.0, 1.0); } else { colorArr.push(baseColor.r, baseColor.g, baseColor.b); }
+        }
+        treeGeo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+        treeGeo.setAttribute('size', new THREE.Float32BufferAttribute(sizeArr, 1));
+        treeGeo.setAttribute('customColor', new THREE.Float32BufferAttribute(colorArr, 3));
+        treeGeo.setAttribute('pIndex', new THREE.Float32BufferAttribute(idxArr, 1));
+        const treeMat = new THREE.ShaderMaterial({
+            uniforms: { time: { value: 0 }, uHeight: { value: treeHeight }, pointTexture: { value: particleTex } },
+            vertexShader: document.getElementById('treeVertex').textContent, fragmentShader: document.getElementById('treeFragment').textContent,
+            blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+        });
+        treeGroup.add(new THREE.Points(treeGeo, treeMat));
+
+        // --- 装饰 (保持不变) ---
+        const ornGeo = new THREE.BufferGeometry(); const ornPos = [], ornCol = [], ornSize = [];
+        for(let i=0; i<300; i++) {
+            const t = Math.random(); const y = (1-t) * treeHeight - treeHeight/2;
+            const r = t * treeWidth; const theta = Math.random() * Math.PI * 2;
+            ornPos.push(Math.cos(theta)*(r+2), y, Math.sin(theta)*(r+2));
+            ornSize.push(Math.random() * 3.0 + 2.0); 
+            if (Math.random() > 0.5) ornCol.push(0.9, 0.9, 1.0); else ornCol.push(0.1, 0.4, 0.9);
+        }
+        ornGeo.setAttribute('position', new THREE.Float32BufferAttribute(ornPos, 3));
+        ornGeo.setAttribute('size', new THREE.Float32BufferAttribute(ornSize, 1));
+        ornGeo.setAttribute('customColor', new THREE.Float32BufferAttribute(ornCol, 3));
+        const ornMat = new THREE.ShaderMaterial({
+            uniforms: { time: { value: 0 }, pointTexture: { value: particleTex } },
+            vertexShader: document.getElementById('ornamentVertex').textContent, fragmentShader: document.getElementById('ornamentFragment').textContent,
+            blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+        });
+        treeGroup.add(new THREE.Points(ornGeo, ornMat));
+
+        // ==============================================
+        // [舒缓防晕] 雪花 JS 代码 (保持防晕眩设置)
+        // ==============================================
+        const snowGeo = new THREE.BufferGeometry(); 
+        const snowPos = [], snowSize = [], snowVel = [], snowPhase = [];
+        const snowCount = isMobile ? 4000 : 7000; 
+        const range = 1800; 
+        const heightRange = 1200; 
+
+        for(let i=0; i<snowCount; i++) {
+            const minRadius = 150; 
+            const r = minRadius + Math.random() * (range * 0.5 - minRadius);
+            const theta = Math.random() * Math.PI * 2;
+            
+            const x = r * Math.cos(theta);
+            const z = r * Math.sin(theta);
+            const y = (Math.random() - 0.5) * heightRange;
+            
+            snowPos.push(x, y, z);
+            
+            const sizeBase = Math.pow(Math.random(), 4.0); 
+            const size = sizeBase * 5.0 + 1.2; 
+            snowSize.push(size);
+
+            snowVel.push(0.2 + Math.random() * (sizeBase * 0.8 + 0.2));
+            snowPhase.push(Math.random() * Math.PI * 2);
+        }
+
+        snowGeo.setAttribute('position', new THREE.Float32BufferAttribute(snowPos, 3));
+        snowGeo.setAttribute('size', new THREE.Float32BufferAttribute(snowSize, 1));
+        snowGeo.setAttribute('velocity', new THREE.Float32BufferAttribute(snowVel, 1));
+        snowGeo.setAttribute('phase', new THREE.Float32BufferAttribute(snowPhase, 1)); 
+
+        const snowMat = new THREE.ShaderMaterial({
+            uniforms: { 
+                time: { value: 0 }, 
+                uHeight: { value: heightRange }, 
+                pointTexture: { value: particleTex } 
+            },
+            vertexShader: document.getElementById('snowVertex').textContent, 
+            fragmentShader: document.getElementById('snowFragment').textContent,
+            blending: THREE.AdditiveBlending, 
+            depthWrite: false, 
+            transparent: true
+        });
+        scene.add(new THREE.Points(snowGeo, snowMat));
+        
+        // ==============================================
+        // [关键优化] 偶发流星系统 (Visible & Fast & Upward)
+        // [修改点] 方向从下往上 (Reverse Direction)
+        // ==============================================
+        const shootingStarGeo = new THREE.BufferGeometry();
+        // 线段的两个端点 (起点, 终点)
+        const shootingStarPos = new Float32Array([0,0,0, 0,0,0]); 
+        shootingStarGeo.setAttribute('position', new THREE.BufferAttribute(shootingStarPos, 3));
+        
+        // 增加线条不透明度
+        const shootingStarMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0 });
+        const shootingStar = new THREE.Line(shootingStarGeo, shootingStarMat);
+        scene.add(shootingStar);
+
+        // 流星状态变量
+        let ssTimer = 0;
+        let ssActive = false;
+        let ssStart = new THREE.Vector3();
+        let ssVelocity = new THREE.Vector3(); // 这里代表总位移向量
+        let ssProgress = 0;
+
+        function updateShootingStar(dt) {
+            if (!ssActive) {
+                ssTimer += dt;
+                // 频率保持不变：每 2-5 秒尝试一次
+                if (ssTimer > 2.0 + Math.random() * 3.0) {
+                    ssActive = true;
+                    ssTimer = 0;
+                    
+                    // 1. 位置优化：从底部出发 (Low Y)
+                    ssStart.set(
+                        (Math.random() - 0.5) * 1200, 
+                        -300 + Math.random() * 200,   // [修改] Y轴从低处开始 (-300 到 -100)
+                        (Math.random() - 0.5) * 400 - 400 
+                    );
+
+                    // 2. 轨迹优化：向上冲刺 (Positive Y)
+                    ssVelocity.set(
+                        (Math.random() - 0.5) * 400, 
+                        Math.random() * 400 + 400,  // [修改] Y轴正向位移 (400-800单位高)
+                        0
+                    );
+                    
+                    ssProgress = 0;
+                    shootingStarMat.opacity = 1;
+                }
+            } else {
+                // 3. 速度保持：dt*0.5 (约2.0秒全程)
+                ssProgress += dt * 0.5; 
+                
+                if (ssProgress >= 1.0) {
+                    ssActive = false;
+                    shootingStarMat.opacity = 0;
+                } else {
+                    // 4. 视觉优化：长拖尾
+                    const tailLag = 0.35; 
+                    
+                    const currentPos = ssStart.clone().add(ssVelocity.clone().multiplyScalar(ssProgress));
+                    // 尾部计算逻辑不用变，因为是减去 lag，自然会落在头部后面
+                    const tailPos = ssStart.clone().add(ssVelocity.clone().multiplyScalar(Math.max(0, ssProgress - tailLag))); 
+                    
+                    const positions = shootingStar.geometry.attributes.position.array;
+                    positions[0] = currentPos.x; positions[1] = currentPos.y; positions[2] = currentPos.z;
+                    positions[3] = tailPos.x;    positions[4] = tailPos.y;    positions[5] = tailPos.z;
+                    shootingStar.geometry.attributes.position.needsUpdate = true;
+                    
+                    // 淡出
+                    if(ssProgress > 0.8) shootingStarMat.opacity = (1.0 - ssProgress) * 5.0;
+                }
+            }
+        }
+        // ==============================================
+
+
+        // --- 星星 (保持不变) ---
+        const starGroup = new THREE.Group(); starGroup.position.set(0, treeHeight/2 + 2, 0); starGroup.scale.set(0,0,0); treeGroup.add(starGroup);
+        const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1.5, 0), new THREE.MeshBasicMaterial({ color: 0xe0ffff })); starGroup.add(core);
+        const cage = new THREE.Mesh(new THREE.IcosahedronGeometry(2.5, 1), new THREE.MeshBasicMaterial({ color: 0x00ffff, wireframe: true, transparent: true, opacity: 0.4 })); starGroup.add(cage);
+        const ringGeo = new THREE.TorusGeometry(5.0, 0.08, 6, 80); 
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.6 });
+        const ring1 = new THREE.Mesh(ringGeo, ringMat); const ring2 = new THREE.Mesh(ringGeo, ringMat); const ring3 = new THREE.Mesh(ringGeo, ringMat);
+        ring2.rotation.y = Math.PI / 2; ring3.rotation.x = Math.PI / 2; 
+        const gyroGroup = new THREE.Group(); gyroGroup.add(ring1, ring2, ring3); starGroup.add(gyroGroup);
+        const spikeGroup = new THREE.Group();
+        const spikeGeo = new THREE.ConeGeometry(0.1, 14, 4); spikeGeo.translate(0, 7, 0); 
+        [new THREE.Vector3(1,0,0), new THREE.Vector3(-1,0,0), new THREE.Vector3(0,1,0), new THREE.Vector3(0,-1,0), new THREE.Vector3(0,0,1), new THREE.Vector3(0,0,-1)].forEach(dir => {
+            const spike = new THREE.Mesh(spikeGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 }));
+            spike.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); spikeGroup.add(spike);
+        });
+        starGroup.add(spikeGroup);
+        
+        // --- 灯笼 (保持不变) ---
+        const lanternGeo = new THREE.BufferGeometry(); const lPos = [], lSize = [], lSpeed = [], lOffset = [];
+        for(let i=0; i<80; i++) {
+            const r = 40 + Math.random()*60; const angle = Math.random()*Math.PI*2;
+            lPos.push(Math.cos(angle)*r, -treeHeight/2-20, Math.sin(angle)*r); lSize.push(Math.random()*3.0+2.0); lSpeed.push(Math.random()*5.0+2.0); lOffset.push(Math.random()*40.0);
+        }
+        lanternGeo.setAttribute('position', new THREE.Float32BufferAttribute(lPos, 3)); lanternGeo.setAttribute('size', new THREE.Float32BufferAttribute(lSize, 1));
+        lanternGeo.setAttribute('riseSpeed', new THREE.Float32BufferAttribute(lSpeed, 1)); lanternGeo.setAttribute('offset', new THREE.Float32BufferAttribute(lOffset, 1));
+        const lanternMat = new THREE.ShaderMaterial({
+            uniforms: { time: { value: 0 }, pointTexture: { value: particleTex } },
+            vertexShader: document.getElementById('lanternVertex').textContent, fragmentShader: document.getElementById('lanternFragment').textContent,
+            blending: THREE.AdditiveBlending, depthWrite: false, transparent: true
+        });
+        scene.add(new THREE.Points(lanternGeo, lanternMat));
+
+        // --- 丝带 (保持不变) ---
+        const streamMat1 = new THREE.ShaderMaterial({ 
+            uniforms: { time: { value: 0 }, color: { value: new THREE.Color(0x40E0D0) } }, 
+            vertexShader: document.getElementById('streamVertex').textContent, 
+            fragmentShader: document.getElementById('streamFragment').textContent, 
+            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide 
+        });
+        const streamMat2 = new THREE.ShaderMaterial({ 
+            uniforms: { time: { value: 0 }, color: { value: new THREE.Color(0x1E90FF) } }, 
+            vertexShader: document.getElementById('streamVertex').textContent, 
+            fragmentShader: document.getElementById('streamFragment').textContent, 
+            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide 
+        });
+
+        function createRibbon(radius, height, turns, mat, offsetPhase) {
+            const points = []; const segments = 120; 
+            for(let i=0; i<=segments; i++) {
+                const t = i / segments; const angle = t * Math.PI * 2 * turns + offsetPhase;
+                const y = t * height - height/2; const r = radius * (1.0 - t * 0.8); 
+                points.push(new THREE.Vector3(Math.cos(angle)*r, y, Math.sin(angle)*r));
+            }
+            return new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 120, 2.0, 4, false), mat); 
+        }
+        treeGroup.add(createRibbon(treeWidth+5, treeHeight, 2.0, streamMat1, 0), createRibbon(treeWidth+5, treeHeight, 2.0, streamMat2, Math.PI));
+
+        // --- 底部光环 (保持不变) ---
+        const groundGeo = new THREE.PlaneGeometry(160, 160);
+        const groundMat = new THREE.ShaderMaterial({
+            uniforms: { time: { value: 0 } },
+            vertexShader: document.getElementById('groundVertex').textContent,
+            fragmentShader: document.getElementById('groundFragment').textContent,
+            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false
+        });
+        const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+        groundMesh.rotation.x = -Math.PI / 2;
+        groundMesh.position.y = -treeHeight/2 - 5; 
+        treeGroup.add(groundMesh);
+
+
+        // --- 交互 (保持不变) ---
+        let targetRotationY = 0; let isDragging = false; let previousMouseX = 0;
+        const onMove = (clientX) => { if(!isDragging) return; targetRotationY += (clientX - previousMouseX)*0.005; previousMouseX = clientX; };
+        document.addEventListener('mousedown', e => { isDragging=true; previousMouseX=e.clientX; }); document.addEventListener('mousemove', e => onMove(e.clientX)); window.addEventListener('mouseup', () => isDragging=false);
+        document.addEventListener('touchstart', e => { isDragging=true; previousMouseX=e.touches[0].clientX; }, {passive:false}); document.addEventListener('touchmove', e => onMove(e.touches[0].clientX), {passive:false}); window.addEventListener('touchend', () => isDragging=false);
+
+        const clock = new THREE.Clock();
+        
+        // --- 动画循环 ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+            
+            // 更新流星
+            updateShootingStar(0.016); 
+
+            // Uniforms 更新
+            treeMat.uniforms.time.value = time; ornMat.uniforms.time.value = time; snowMat.uniforms.time.value = time;
+            lanternMat.uniforms.time.value = time; streamMat1.uniforms.time.value = time; streamMat2.uniforms.time.value = time;
+            groundMat.uniforms.time.value = time; 
+
+            if(!isDragging) targetRotationY += 0.001;
+            treeGroup.rotation.y += (targetRotationY - treeGroup.rotation.y) * 0.05;
+            
+            // 运镜逻辑 (保持不变)
+            const duration = 8.0; 
+            const startTime = 0.5;
+
+            if (time < duration + startTime) {
+                let linearProgress = (time - startTime) / duration;
+                linearProgress = Math.max(0, Math.min(1, linearProgress));
+                const easeProgress = 1 - Math.pow(1 - linearProgress, 3);
+                
+                camera.position.lerpVectors(startPos, targetPos, easeProgress);
+                camera.lookAt(0, 20, 0); 
+
+            } else {
+                const breathY = Math.sin(time * 0.5) * 5.0; 
+                const breathZ = Math.cos(time * 0.3) * 5.0;
+                
+                camera.position.y = targetPos.y + breathY;
+                camera.position.z = targetPos.z + breathZ;
+                camera.lookAt(0, 20, 0); 
+            }
+
+            // 树顶星动画 (保持不变)
+            starGroup.position.y = treeHeight/2 + 2 + Math.sin(time) * 0.5;
+            core.rotation.y = time * 2.0; core.rotation.z = time * 1.5;
+            cage.rotation.y = -time * 0.5; cage.rotation.x = time * 0.2;
+            gyroGroup.rotation.x = time * 0.8; gyroGroup.rotation.y = time * 0.6;
+            ring1.rotation.x += 0.02; spikeGroup.scale.setScalar(1 + Math.sin(time*10)*0.1); spikeGroup.rotation.z = -time * 0.5;
+            
+            if(time < 6.0) starGroup.scale.setScalar(THREE.MathUtils.smoothstep(time, 3.0, 5.0));
+            composer.render();
+        }
+        
+        window.addEventListener('resize', () => { 
+            camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); 
+            renderer.setSize(window.innerWidth, window.innerHeight); composer.setSize(window.innerWidth, window.innerHeight); 
+            const isMobileNow = window.innerWidth < 768;
+            targetPos.set(0, isMobileNow ? 30 : 20, isMobileNow ? 260 : 220);
+        });
+        animate();
+    </script>
+</body>
+</html>
